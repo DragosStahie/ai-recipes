@@ -36,6 +36,7 @@ import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,7 @@ import coil3.compose.AsyncImage
 @Composable
 fun MainScreen(modifier: Modifier = Modifier) {
     var queryValue by remember { mutableStateOf("") }
+    val isQueryFilled by remember(queryValue) { derivedStateOf { queryValue.isNotBlank() } }
     var detailsScreenVisible by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
@@ -81,14 +83,15 @@ fun MainScreen(modifier: Modifier = Modifier) {
             onExpandedChange = {},
             content = {}
         )
-        if (queryValue.isBlank()) {
+        AnimatedVisibility(!isQueryFilled) {
             RecipesList(
                 title = "Favorites",
                 recipesList = listOf("Recipe 1", "Recipe 2", "Recipe 3", "Recipe 4"),
                 onCardClick = { detailsScreenVisible = true },
                 modifier = Modifier.fillMaxSize(),
             )
-        } else {
+        }
+        AnimatedVisibility(isQueryFilled) {
             RecipesList(
                 title = "Suggested recipes",
                 recipesList = listOf(
