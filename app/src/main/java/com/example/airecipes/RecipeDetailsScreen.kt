@@ -32,6 +32,7 @@ import coil3.compose.AsyncImage
 
 @Composable
 fun RecipeDetailsScreen(
+    item: RecipeItem,
     onBackPressed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -43,9 +44,10 @@ fun RecipeDetailsScreen(
     ) {
         Box {
             AsyncImage(
-                model = null,
+                model = item.imageUrl,
                 contentDescription = null,
-                fallback = painterResource(R.drawable.ic_image_placeholder),
+                placeholder = painterResource(R.drawable.ic_image_placeholder),
+                error = painterResource(R.drawable.ic_image_placeholder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
@@ -71,7 +73,7 @@ fun RecipeDetailsScreen(
                 horizontalAlignment = Alignment.Start,
             ) {
                 Text(
-                    text = "Mashed Potatoes",
+                    text = item.title,
                     style = LocalTextStyle.current.copy(
                         fontSize = 24.sp,
                         lineHeight = 28.sp,
@@ -81,7 +83,7 @@ fun RecipeDetailsScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "20 min.",
+                    text = item.cookingTime,
                     style = LocalTextStyle.current.copy(
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
@@ -113,13 +115,7 @@ fun RecipeDetailsScreen(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "5 pounds potatoes\n" +
-                        "2 large cloves garlic, minced\n" +
-                        "fine sea salt\n" +
-                        "6 tablespoons butter\n" +
-                        "1 cup whole milk\n" +
-                        "4 ounces cream cheese, room temperature\n" +
-                        "toppings: chopped fresh chives or green onions, freshly-cracked black pepper",
+                text = item.ingredients,
                 style = LocalTextStyle.current.copy(
                     fontSize = 16.sp,
                     lineHeight = 22.sp,
@@ -143,14 +139,7 @@ fun RecipeDetailsScreen(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "Cut the potatoes. Again, feel free to peel your potatoes or leave the skins on. (I always leave them on for the extra nutrients and flavor.)  Then cut your potatoes into evenly-sized chunks, about an inch or so thick. Then transfer them to a large stockpot full of cold water until all of the potatoes are cut and ready to go.\n" +
-                        "Boil the potatoes. Once all of your potatoes are cut, be sure that there is enough cold water in the pan so that the water line sits about 1 inch above the potatoes. Add the garlic and 1 tablespoon salt to the water. Then turn on high heat until the water comes to a boil. And boil the potatoes for about 10-12 minutes until a knife inserted in the middle of a potato goes in with almost no resistance. Carefully drain out all of the water.\n" +
-                        "Prepare your melted butter mixture. Meanwhile, as the potatoes are boiling, heat your butter, milk and an additional 2 teaspoons of sea salt together either in a small saucepan or in the microwave until the butter is just melted. (You want to avoid boiling the milk.)  Set aside until ready to use.\n" +
-                        "Pan-dry the potatoes. Return the potatoes to the hot stockpot, and then place the stockpot back on the hot burner, turning the heat down to low. Using two oven mitts, carefully hold the handles on the stockpot and shake it gently on the burner for about 1 minute to help cook off some of the remaining steam within the potatoes. Then remove the stockpot entirely from the heat.\n" +
-                        "Mash the potatoes.  Using your preferred kind of masher (see above), mash the potatoes to your desired consistency.\n" +
-                        "Stir everything together. Then pour half of the melted butter mixture over the potatoes, and fold it in with a wooden spoon or spatula until potatoes have soaked up the liquid. Repeat with the remaining butter. And then again with the cream cheese. Fold each addition in until just combined to avoid overmixing, or else you will end up with gummy potatoes.\n" +
-                        "Taste and season. One final time, adding in extra salt (plus black pepper, if you would like) to taste.\n" +
-                        "Serve warm. Then serve warm, garnished with any extra toppings that you might like, and enjoy!! ♡",
+                text = item.instructions,
                 style = LocalTextStyle.current.copy(
                     fontSize = 16.sp,
                     lineHeight = 22.sp,
@@ -165,6 +154,27 @@ fun RecipeDetailsScreen(
 @Composable
 private fun RecipeDetailsScreenPreview() {
     RecipeDetailsScreen(
+        item = RecipeItem(
+            id = "",
+            title = "Mashed Potatoes",
+            cookingTime = "20 min",
+            ingredients = "5 pounds potatoes\\n\" +\n" +
+                    "\"2 large cloves garlic, minced\\n\" +\n" +
+                    "\"fine sea salt\\n\" +\n" +
+                    "\"6 tablespoons butter\\n\" +\n" +
+                    "\"1 cup whole milk\\n\" +\n" +
+                    "\"4 ounces cream cheese, room temperature\\n\" +\n" +
+                    "\"toppings: chopped fresh chives or green onions, freshly-cracked black pepper",
+            instructions = "\"Cut the potatoes. Again, feel free to peel your potatoes or leave the skins on. (I always leave them on for the extra nutrients and flavor.)  Then cut your potatoes into evenly-sized chunks, about an inch or so thick. Then transfer them to a large stockpot full of cold water until all of the potatoes are cut and ready to go.\\n\" +\n" +
+                    "\"Boil the potatoes. Once all of your potatoes are cut, be sure that there is enough cold water in the pan so that the water line sits about 1 inch above the potatoes. Add the garlic and 1 tablespoon salt to the water. Then turn on high heat until the water comes to a boil. And boil the potatoes for about 10-12 minutes until a knife inserted in the middle of a potato goes in with almost no resistance. Carefully drain out all of the water.\\n\" +\n" +
+                    "\"Prepare your melted butter mixture. Meanwhile, as the potatoes are boiling, heat your butter, milk and an additional 2 teaspoons of sea salt together either in a small saucepan or in the microwave until the butter is just melted. (You want to avoid boiling the milk.)  Set aside until ready to use.\\n\" +\n" +
+                    "\"Pan-dry the potatoes. Return the potatoes to the hot stockpot, and then place the stockpot back on the hot burner, turning the heat down to low. Using two oven mitts, carefully hold the handles on the stockpot and shake it gently on the burner for about 1 minute to help cook off some of the remaining steam within the potatoes. Then remove the stockpot entirely from the heat.\\n\" +\n" +
+                    "\"Mash the potatoes.  Using your preferred kind of masher (see above), mash the potatoes to your desired consistency.\\n\" +\n" +
+                    "\"Stir everything together. Then pour half of the melted butter mixture over the potatoes, and fold it in with a wooden spoon or spatula until potatoes have soaked up the liquid. Repeat with the remaining butter. And then again with the cream cheese. Fold each addition in until just combined to avoid overmixing, or else you will end up with gummy potatoes.\\n\" +\n" +
+                    "\"Taste and season. One final time, adding in extra salt (plus black pepper, if you would like) to taste.\\n\" +\n" +
+                    "\"Serve warm. Then serve warm, garnished with any extra toppings that you might like, and enjoy!! ♡\"",
+            imageUrl = ""
+        ),
         onBackPressed = {}
     )
 }

@@ -40,6 +40,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,13 +52,19 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.GenerationConfig
+import kotlinx.coroutines.launch
+import org.json.JSONArray
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(modifier: Modifier = Modifier) {
     var queryValue by remember { mutableStateOf("") }
     val isQueryFilled by remember(queryValue) { derivedStateOf { queryValue.isNotBlank() } }
-    var detailsScreenVisible by remember { mutableStateOf(false) }
+    var selectedItemId by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    var resultsList by remember { mutableStateOf<List<RecipeItem>>(emptyList()) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -72,7 +79,11 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 SearchBarDefaults.InputField(
                     query = queryValue,
                     onQueryChange = { newValue -> queryValue = newValue },
-                    onSearch = {},
+                    onSearch = {
+                        coroutineScope.launch {
+                            resultsList = generateItemsForInput(queryValue)
+                        }
+                    },
                     expanded = false,
                     onExpandedChange = {},
                     placeholder = { Text("What do you feel like eating?") },
@@ -86,25 +97,20 @@ fun MainScreen(modifier: Modifier = Modifier) {
         AnimatedVisibility(!isQueryFilled) {
             RecipesList(
                 title = "Favorites",
-                recipesList = listOf("Recipe 1", "Recipe 2", "Recipe 3", "Recipe 4"),
-                onCardClick = { detailsScreenVisible = true },
+                recipesList = emptyList(),
+                onCardClick = { selectedId ->
+                    selectedItemId = selectedId
+                },
                 modifier = Modifier.fillMaxSize(),
             )
         }
         AnimatedVisibility(isQueryFilled) {
             RecipesList(
                 title = "Suggested recipes",
-                recipesList = listOf(
-                    "Recipe 1",
-                    "Fish and Chips classic",
-                    "A recipe with a much longer title that should stretch across multiple rows",
-                    "Last recipe",
-                    "Last recipe2",
-                    "Last recipe3",
-                    "Last recipe4",
-                    "Last recipe5"
-                ),
-                onCardClick = { detailsScreenVisible = true },
+                recipesList = resultsList,
+                onCardClick = { selectedId ->
+                    selectedItemId = selectedId
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
@@ -118,7 +124,11 @@ fun MainScreen(modifier: Modifier = Modifier) {
                                 .width(178.dp)
                                 .height(48.dp),
                             shape = RoundedCornerShape(8.dp),
-                            onClick = {},
+                            onClick = {
+                                coroutineScope.launch {
+                                    resultsList = generateItemsForInput(queryValue)
+                                }
+                            },
                         ) {
                             Text(
                                 text = "I don't like these",
@@ -135,7 +145,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
         }
     }
     AnimatedVisibility(
-        visible = detailsScreenVisible,
+        visible = selectedItemId != null,
         enter = slideIn(
             animationSpec = spring(stiffness = Spring.StiffnessMedium),
             initialOffset = { fullSize -> IntOffset(fullSize.width, 0) },
@@ -146,10 +156,11 @@ fun MainScreen(modifier: Modifier = Modifier) {
         ),
     ) {
         RecipeDetailsScreen(
-            modifier = modifier,
+            item = resultsList.firstOrNull { it.id == selectedItemId } ?: RecipeItem.empty(),
             onBackPressed = {
-                detailsScreenVisible = false
+                selectedItemId = null
             },
+            modifier = modifier,
         )
     }
 }
@@ -157,8 +168,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
 @Composable
 fun RecipesList(
     title: String,
-    recipesList: List<String>,
-    onCardClick: () -> Unit,
+    recipesList: List<RecipeItem>,
+    onCardClick: (id: String) -> Unit,
     modifier: Modifier = Modifier,
     endItem: (@Composable () -> Unit)? = null,
 ) {
@@ -179,67 +190,82 @@ fun RecipesList(
                 )
             )
         }
-        items(items = recipesList, key = { it }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(88.dp)
-                    .clickable {
-                        onCardClick()
-                    },
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
-            ) {
-                Row(
+        if (recipesList.isNotEmpty()) {
+            items(items = recipesList, key = { it.id }) {
+                Card(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surface),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .fillMaxWidth()
+                        .height(88.dp)
+                        .clickable {
+                            onCardClick(it.id)
+                        },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
                 ) {
-                    AsyncImage(
-                        model = null,
-                        contentDescription = null,
-                        fallback = painterResource(R.drawable.ic_image_placeholder),
+                    Row(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .aspectRatio(1f)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                    )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .weight(1f)
-                            .padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.Start,
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surface),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = it,
-                            style = LocalTextStyle.current.copy(
-                                fontSize = 16.sp,
-                                lineHeight = 22.sp,
-                                fontWeight = FontWeight(600)
-                            ),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                        AsyncImage(
+                            model = it.imageUrl,
+                            contentDescription = null,
+                            placeholder = painterResource(R.drawable.ic_image_placeholder),
+                            error = painterResource(R.drawable.ic_image_placeholder),
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .aspectRatio(1f)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                         )
-                        Text(
-                            text = it,
-                            style = LocalTextStyle.current.copy(
-                                fontSize = 14.sp,
-                                lineHeight = 20.sp,
-                                fontWeight = FontWeight(400)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                        Column(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .weight(1f)
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.Start,
+                        ) {
+                            Text(
+                                text = it.title,
+                                style = LocalTextStyle.current.copy(
+                                    fontSize = 16.sp,
+                                    lineHeight = 22.sp,
+                                    fontWeight = FontWeight(600)
+                                ),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = it.cookingTime,
+                                style = LocalTextStyle.current.copy(
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    fontWeight = FontWeight(400)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Icon(
+                            Icons.Default.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
-                    Icon(
-                        Icons.Default.Favorite,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
                 }
+            }
+        } else {
+            item(key = "Empty State Text") {
+                Text(
+                    text = "No recipes in this list!",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = LocalTextStyle.current.copy(
+                        fontSize = 26.sp,
+                        lineHeight = 30.sp,
+                        fontWeight = FontWeight(500)
+                    )
+                )
             }
         }
         if (endItem != null) {
@@ -247,6 +273,53 @@ fun RecipesList(
                 endItem.invoke()
             }
         }
+    }
+}
+
+private suspend fun generateItemsForInput(input: String): List<RecipeItem> {
+    val itemsList = mutableListOf<RecipeItem>()
+
+    val configs = GenerationConfig.builder()
+    configs.responseMimeType = "application/json"
+    val generativeModel =
+        GenerativeModel(
+            modelName = "gemini-1.5-flash",
+            apiKey = BuildConfig.apiKey,
+            generationConfig = configs.build()
+        )
+
+    val prompt =
+        "Find 5 recipes that are described by this: $input. Use this schema: { \"id\": str, \"title\": str, \"cookingTime\": str, \"ingredients\": str, \"instructions\": str, \"imageUrl\": str}. Generate a random UUID for each unique recipe. Get an image URL from the web for each recipe. Ingredients should be each on their own line with bullet points."
+    generativeModel.generateContent(prompt).text?.let { responseText ->
+        val responseArray = JSONArray(responseText)
+        for (index in 0..<responseArray.length()) {
+            val item = responseArray.getJSONObject(index)
+            itemsList.add(
+                RecipeItem(
+                    id = item.getString("id"),
+                    title = item.getString("title"),
+                    cookingTime = item.getString("cookingTime"),
+                    ingredients = item.getString("ingredients"),
+                    instructions = item.getString("instructions"),
+                    imageUrl = item.getString("imageUrl"),
+                )
+            )
+        }
+    }
+
+    return itemsList
+}
+
+data class RecipeItem(
+    val id: String,
+    val title: String,
+    val cookingTime: String,
+    val ingredients: String,
+    val instructions: String,
+    val imageUrl: String,
+) {
+    companion object {
+        fun empty() = RecipeItem("", "", "", "", "", "")
     }
 }
 
