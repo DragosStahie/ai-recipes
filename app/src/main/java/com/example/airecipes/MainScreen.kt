@@ -1,6 +1,12 @@
 package com.example.airecipes
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.slideIn
+import androidx.compose.animation.slideOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +46,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -48,6 +55,7 @@ import coil3.compose.AsyncImage
 @Composable
 fun MainScreen(modifier: Modifier = Modifier) {
     var queryValue by remember { mutableStateOf("") }
+    var detailsScreenVisible by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -77,8 +85,8 @@ fun MainScreen(modifier: Modifier = Modifier) {
             RecipesList(
                 title = "Favorites",
                 recipesList = listOf("Recipe 1", "Recipe 2", "Recipe 3", "Recipe 4"),
-                modifier = Modifier
-                    .fillMaxSize(),
+                onCardClick = { detailsScreenVisible = true },
+                modifier = Modifier.fillMaxSize(),
             )
         } else {
             RecipesList(
@@ -93,6 +101,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
                     "Last recipe4",
                     "Last recipe5"
                 ),
+                onCardClick = { detailsScreenVisible = true },
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
@@ -122,12 +131,31 @@ fun MainScreen(modifier: Modifier = Modifier) {
             )
         }
     }
+    AnimatedVisibility(
+        visible = detailsScreenVisible,
+        enter = slideIn(
+            animationSpec = spring(stiffness = Spring.StiffnessMedium),
+            initialOffset = { fullSize -> IntOffset(fullSize.width, 0) },
+        ),
+        exit = slideOut(
+            spring(stiffness = Spring.StiffnessMedium),
+            targetOffset = { fullSize -> IntOffset(fullSize.width, 0) },
+        ),
+    ) {
+        RecipeDetailsScreen(
+            modifier = modifier,
+            onBackPressed = {
+                detailsScreenVisible = false
+            },
+        )
+    }
 }
 
 @Composable
 fun RecipesList(
     title: String,
     recipesList: List<String>,
+    onCardClick: () -> Unit,
     modifier: Modifier = Modifier,
     endItem: (@Composable () -> Unit)? = null,
 ) {
@@ -152,13 +180,17 @@ fun RecipesList(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(88.dp),
+                    .height(88.dp)
+                    .clickable {
+                        onCardClick()
+                    },
                 elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.surface),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AsyncImage(
                         model = null,
@@ -198,18 +230,12 @@ fun RecipesList(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Default.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
             }
         }
