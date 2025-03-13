@@ -79,6 +79,7 @@ fun MainScreen(
                         state.onSearchPress()
                         focusManager.clearFocus()
                     },
+                    enabled = !state.isLoading,
                     expanded = false,
                     onExpandedChange = {},
                     placeholder = { Text("What do you feel like eating?") },
@@ -102,7 +103,10 @@ fun MainScreen(
             RecipesList(
                 title = "Suggested recipes",
                 recipesList = state.searchResultsList,
-                onCardClick = state::onCardClick,
+                onCardClick = {
+                    state.onCardClick(it)
+                    focusManager.clearFocus()
+                },
                 onFavoriteClick = state::onFavoriteToggle,
                 modifier = Modifier
                     .fillMaxSize()

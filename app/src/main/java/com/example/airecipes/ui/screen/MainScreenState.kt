@@ -74,23 +74,29 @@ class MainScreenState(
     }
 
     fun onSearchPress() {
-        coroutineScope.launch {
-            isLoading = true
-            searchResultsList = generateInitialListForInput(queryValue)
-            isLoading = false
+        if (!isLoading) {
+            coroutineScope.launch {
+                isLoading = true
+                searchResultsList = generateInitialListForInput(queryValue)
+                isLoading = false
+            }
         }
     }
 
     fun onRegenerateListPress() {
-        coroutineScope.launch {
-            isLoading = true
-            searchResultsList = generateDifferentListForInput(queryValue)
-            isLoading = false
+        if (!isLoading) {
+            coroutineScope.launch {
+                isLoading = true
+                searchResultsList = generateDifferentListForInput(queryValue)
+                isLoading = false
+            }
         }
     }
 
     fun onCardClick(itemTitle: String) {
-        selectedItemTitle = itemTitle
+        if (!isLoading) {
+            selectedItemTitle = itemTitle
+        }
     }
 
     fun onClearSelectedItem() {
@@ -98,13 +104,15 @@ class MainScreenState(
     }
 
     fun onFavoriteToggle(itemTitle: String) {
-        coroutineScope.launch {
-            if (isItemFavorite(itemTitle)) {
-                recipeRepository.deleteByTitle(itemTitle)
-            } else {
-                recipeRepository.insert(
-                    searchResultsList.firstOrNull { it.title == itemTitle } ?: return@launch
-                )
+        if (!isLoading) {
+            coroutineScope.launch {
+                if (isItemFavorite(itemTitle)) {
+                    recipeRepository.deleteByTitle(itemTitle)
+                } else {
+                    recipeRepository.insert(
+                        searchResultsList.firstOrNull { it.title == itemTitle } ?: return@launch
+                    )
+                }
             }
         }
     }
