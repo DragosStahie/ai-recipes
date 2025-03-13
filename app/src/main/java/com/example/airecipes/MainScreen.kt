@@ -1,5 +1,6 @@
 package com.example.airecipes
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -44,6 +46,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,18 +58,125 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.BlockThreshold
 import com.google.ai.client.generativeai.type.GenerationConfig
+import com.google.ai.client.generativeai.type.HarmCategory
+import com.google.ai.client.generativeai.type.SafetySetting
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.json.JSONArray
+import org.json.JSONException
+
+class MainScreenState(
+    private val coroutineScope: CoroutineScope
+) {
+    private val configs = GenerationConfig.builder().apply { responseMimeType = "application/json" }
+    private val safetySettings = listOf(
+        SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.LOW_AND_ABOVE),
+        SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.LOW_AND_ABOVE),
+        SafetySetting(HarmCategory.HARASSMENT, BlockThreshold.LOW_AND_ABOVE),
+        SafetySetting(HarmCategory.HATE_SPEECH, BlockThreshold.LOW_AND_ABOVE),
+    )
+
+    private val generativeModel =
+        GenerativeModel(
+            modelName = "gemini-1.5-flash",
+            apiKey = BuildConfig.apiKey,
+            generationConfig = configs.build(),
+            safetySettings = safetySettings,
+        )
+
+    var queryValue by mutableStateOf("")
+    val isQueryFilled by derivedStateOf { queryValue.isNotBlank() }
+    var selectedItemId by mutableStateOf<String?>(null)
+    var resultsList by mutableStateOf<List<RecipeItem>>(emptyList())
+    var isLoading by mutableStateOf(false)
+
+    fun onQueryChange(newValue: String) {
+        queryValue = newValue
+    }
+
+    fun onSearchPress() {
+        coroutineScope.launch {
+            isLoading = true
+            resultsList = generateInitialListForInput(queryValue)
+            isLoading = false
+        }
+    }
+
+    fun onRegenerateListPress() {
+        coroutineScope.launch {
+            isLoading = true
+            resultsList = generateDifferentListForInput(queryValue)
+            isLoading = false
+        }
+    }
+
+    fun onCardClick(itemId: String) {
+        selectedItemId = itemId
+    }
+
+    fun onClearSelectedItem() {
+        selectedItemId = null
+    }
+
+    private suspend fun generateInitialListForInput(input: String) =
+        generateItemsForInput("Find 5 recipes that are described by this: $input. ")
+
+    private suspend fun generateDifferentListForInput(input: String) =
+        generateItemsForInput(
+            "Find 5 recipes that are described by this: $input. " +
+                    "They should all be different from the last set of 5 recipes you generated."
+        )
+
+    private suspend fun generateItemsForInput(input: String): List<RecipeItem> {
+        val itemsList = mutableListOf<RecipeItem>()
+
+        val prompt = input +
+                "Use this schema: { \"id\": str, \"title\": str, \"cookingTime\": str, \"ingredients\": str, \"instructions\": str, \"imageUrl\": str}. " +
+                "Generate a random UUID for each unique recipe. Get an image URL from the web for each recipe. " +
+                "Ingredients should be each on their own line with bullet points." +
+                "Always return a json array - no top level object!"
+
+        generativeModel.generateContent(prompt).text?.let { responseText ->
+            try {
+                val responseArray = JSONArray(responseText)
+                for (index in 0..<responseArray.length()) {
+                    val item = responseArray.getJSONObject(index)
+                    itemsList.add(
+                        RecipeItem(
+                            id = item.getString("id"),
+                            title = item.getString("title"),
+                            cookingTime = item.getString("cookingTime"),
+                            ingredients = item.getString("ingredients"),
+                            instructions = item.getString("instructions"),
+                            imageUrl = item.getString("imageUrl"),
+                        )
+                    )
+                }
+            } catch (e: JSONException) {
+                Log.e("JSON_PARSING", e.toString())
+            }
+        }
+
+        return itemsList
+    }
+}
+
+@Composable
+fun rememberMainScreenState(
+    coroutineScope: CoroutineScope = rememberCoroutineScope(),
+) = remember {
+    MainScreenState(coroutineScope)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(modifier: Modifier = Modifier) {
-    var queryValue by remember { mutableStateOf("") }
-    val isQueryFilled by remember(queryValue) { derivedStateOf { queryValue.isNotBlank() } }
-    var selectedItemId by remember { mutableStateOf<String?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-    var resultsList by remember { mutableStateOf<List<RecipeItem>>(emptyList()) }
+fun MainScreen(
+    state: MainScreenState,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = LocalFocusManager.current
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -77,12 +189,11 @@ fun MainScreen(modifier: Modifier = Modifier) {
                 .padding(vertical = 16.dp),
             inputField = {
                 SearchBarDefaults.InputField(
-                    query = queryValue,
-                    onQueryChange = { newValue -> queryValue = newValue },
+                    query = state.queryValue,
+                    onQueryChange = state::onQueryChange,
                     onSearch = {
-                        coroutineScope.launch {
-                            resultsList = generateItemsForInput(queryValue)
-                        }
+                        state.onSearchPress()
+                        focusManager.clearFocus()
                     },
                     expanded = false,
                     onExpandedChange = {},
@@ -94,23 +205,19 @@ fun MainScreen(modifier: Modifier = Modifier) {
             onExpandedChange = {},
             content = {}
         )
-        AnimatedVisibility(!isQueryFilled) {
+        AnimatedVisibility(!state.isQueryFilled) {
             RecipesList(
                 title = "Favorites",
                 recipesList = emptyList(),
-                onCardClick = { selectedId ->
-                    selectedItemId = selectedId
-                },
+                onCardClick = state::onCardClick,
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        AnimatedVisibility(isQueryFilled) {
+        AnimatedVisibility(state.isQueryFilled) {
             RecipesList(
                 title = "Suggested recipes",
-                recipesList = resultsList,
-                onCardClick = { selectedId ->
-                    selectedItemId = selectedId
-                },
+                recipesList = state.resultsList,
+                onCardClick = state::onCardClick,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
@@ -124,11 +231,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
                                 .width(178.dp)
                                 .height(48.dp),
                             shape = RoundedCornerShape(8.dp),
-                            onClick = {
-                                coroutineScope.launch {
-                                    resultsList = generateItemsForInput(queryValue)
-                                }
-                            },
+                            onClick = { state.onRegenerateListPress() },
                         ) {
                             Text(
                                 text = "I don't like these",
@@ -145,7 +248,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
         }
     }
     AnimatedVisibility(
-        visible = selectedItemId != null,
+        visible = state.selectedItemId != null,
         enter = slideIn(
             animationSpec = spring(stiffness = Spring.StiffnessMedium),
             initialOffset = { fullSize -> IntOffset(fullSize.width, 0) },
@@ -156,12 +259,21 @@ fun MainScreen(modifier: Modifier = Modifier) {
         ),
     ) {
         RecipeDetailsScreen(
-            item = resultsList.firstOrNull { it.id == selectedItemId } ?: RecipeItem.empty(),
-            onBackPressed = {
-                selectedItemId = null
-            },
+            item = state.resultsList.firstOrNull { it.id == state.selectedItemId }
+                ?: RecipeItem.empty(),
+            onBackPressed = state::onClearSelectedItem,
             modifier = modifier,
         )
+    }
+    if (state.isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator()
+        }
     }
 }
 
@@ -212,6 +324,7 @@ fun RecipesList(
                             contentDescription = null,
                             placeholder = painterResource(R.drawable.ic_image_placeholder),
                             error = painterResource(R.drawable.ic_image_placeholder),
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .aspectRatio(1f)
@@ -255,6 +368,11 @@ fun RecipesList(
                     }
                 }
             }
+            if (endItem != null) {
+                item(key = "End Item") {
+                    endItem.invoke()
+                }
+            }
         } else {
             item(key = "Empty State Text") {
                 Text(
@@ -268,63 +386,13 @@ fun RecipesList(
                 )
             }
         }
-        if (endItem != null) {
-            item(key = "End Item") {
-                endItem.invoke()
-            }
-        }
-    }
-}
-
-private suspend fun generateItemsForInput(input: String): List<RecipeItem> {
-    val itemsList = mutableListOf<RecipeItem>()
-
-    val configs = GenerationConfig.builder()
-    configs.responseMimeType = "application/json"
-    val generativeModel =
-        GenerativeModel(
-            modelName = "gemini-1.5-flash",
-            apiKey = BuildConfig.apiKey,
-            generationConfig = configs.build()
-        )
-
-    val prompt =
-        "Find 5 recipes that are described by this: $input. Use this schema: { \"id\": str, \"title\": str, \"cookingTime\": str, \"ingredients\": str, \"instructions\": str, \"imageUrl\": str}. Generate a random UUID for each unique recipe. Get an image URL from the web for each recipe. Ingredients should be each on their own line with bullet points."
-    generativeModel.generateContent(prompt).text?.let { responseText ->
-        val responseArray = JSONArray(responseText)
-        for (index in 0..<responseArray.length()) {
-            val item = responseArray.getJSONObject(index)
-            itemsList.add(
-                RecipeItem(
-                    id = item.getString("id"),
-                    title = item.getString("title"),
-                    cookingTime = item.getString("cookingTime"),
-                    ingredients = item.getString("ingredients"),
-                    instructions = item.getString("instructions"),
-                    imageUrl = item.getString("imageUrl"),
-                )
-            )
-        }
-    }
-
-    return itemsList
-}
-
-data class RecipeItem(
-    val id: String,
-    val title: String,
-    val cookingTime: String,
-    val ingredients: String,
-    val instructions: String,
-    val imageUrl: String,
-) {
-    companion object {
-        fun empty() = RecipeItem("", "", "", "", "", "")
     }
 }
 
 @Preview
 @Composable
 private fun MainScreenPreview() {
-    MainScreen()
+    MainScreen(
+        state = rememberMainScreenState()
+    )
 }

@@ -19,7 +19,10 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    MainScreen(modifier = Modifier.safeDrawingPadding())
+                    MainScreen(
+                        state = rememberMainScreenState(),
+                        modifier = Modifier.safeDrawingPadding(),
+                    )
                 }
             }
         }
