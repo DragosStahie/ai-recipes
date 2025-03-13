@@ -1,6 +1,5 @@
-package com.example.airecipes
+package com.example.airecipes.ui.screen
 
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -25,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -38,12 +38,6 @@ import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,118 +51,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.BlockThreshold
-import com.google.ai.client.generativeai.type.GenerationConfig
-import com.google.ai.client.generativeai.type.HarmCategory
-import com.google.ai.client.generativeai.type.SafetySetting
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONException
-
-class MainScreenState(
-    private val coroutineScope: CoroutineScope
-) {
-    private val configs = GenerationConfig.builder().apply { responseMimeType = "application/json" }
-    private val safetySettings = listOf(
-        SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.LOW_AND_ABOVE),
-        SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.LOW_AND_ABOVE),
-        SafetySetting(HarmCategory.HARASSMENT, BlockThreshold.LOW_AND_ABOVE),
-        SafetySetting(HarmCategory.HATE_SPEECH, BlockThreshold.LOW_AND_ABOVE),
-    )
-
-    private val generativeModel =
-        GenerativeModel(
-            modelName = "gemini-1.5-flash",
-            apiKey = BuildConfig.apiKey,
-            generationConfig = configs.build(),
-            safetySettings = safetySettings,
-        )
-
-    var queryValue by mutableStateOf("")
-    val isQueryFilled by derivedStateOf { queryValue.isNotBlank() }
-    var selectedItemId by mutableStateOf<String?>(null)
-    var resultsList by mutableStateOf<List<RecipeItem>>(emptyList())
-    var isLoading by mutableStateOf(false)
-
-    fun onQueryChange(newValue: String) {
-        queryValue = newValue
-    }
-
-    fun onSearchPress() {
-        coroutineScope.launch {
-            isLoading = true
-            resultsList = generateInitialListForInput(queryValue)
-            isLoading = false
-        }
-    }
-
-    fun onRegenerateListPress() {
-        coroutineScope.launch {
-            isLoading = true
-            resultsList = generateDifferentListForInput(queryValue)
-            isLoading = false
-        }
-    }
-
-    fun onCardClick(itemId: String) {
-        selectedItemId = itemId
-    }
-
-    fun onClearSelectedItem() {
-        selectedItemId = null
-    }
-
-    private suspend fun generateInitialListForInput(input: String) =
-        generateItemsForInput("Find 5 recipes that are described by this: $input. ")
-
-    private suspend fun generateDifferentListForInput(input: String) =
-        generateItemsForInput(
-            "Find 5 recipes that are described by this: $input. " +
-                    "They should all be different from the last set of 5 recipes you generated."
-        )
-
-    private suspend fun generateItemsForInput(input: String): List<RecipeItem> {
-        val itemsList = mutableListOf<RecipeItem>()
-
-        val prompt = input +
-                "Use this schema: { \"id\": str, \"title\": str, \"cookingTime\": str, \"ingredients\": str, \"instructions\": str, \"imageUrl\": str}. " +
-                "Generate a random UUID for each unique recipe. Get an image URL from the web for each recipe. " +
-                "Ingredients should be each on their own line with bullet points." +
-                "Always return a json array - no top level object!"
-
-        generativeModel.generateContent(prompt).text?.let { responseText ->
-            try {
-                val responseArray = JSONArray(responseText)
-                for (index in 0..<responseArray.length()) {
-                    val item = responseArray.getJSONObject(index)
-                    itemsList.add(
-                        RecipeItem(
-                            id = item.getString("id"),
-                            title = item.getString("title"),
-                            cookingTime = item.getString("cookingTime"),
-                            ingredients = item.getString("ingredients"),
-                            instructions = item.getString("instructions"),
-                            imageUrl = item.getString("imageUrl"),
-                        )
-                    )
-                }
-            } catch (e: JSONException) {
-                Log.e("JSON_PARSING", e.toString())
-            }
-        }
-
-        return itemsList
-    }
-}
-
-@Composable
-fun rememberMainScreenState(
-    coroutineScope: CoroutineScope = rememberCoroutineScope(),
-) = remember {
-    MainScreenState(coroutineScope)
-}
+import com.example.airecipes.R
+import com.example.airecipes.ui.model.RecipeItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -208,16 +92,18 @@ fun MainScreen(
         AnimatedVisibility(!state.isQueryFilled) {
             RecipesList(
                 title = "Favorites",
-                recipesList = emptyList(),
+                recipesList = state.favoritesList,
                 onCardClick = state::onCardClick,
+                onFavoriteClick = state::onFavoriteToggle,
                 modifier = Modifier.fillMaxSize(),
             )
         }
         AnimatedVisibility(state.isQueryFilled) {
             RecipesList(
                 title = "Suggested recipes",
-                recipesList = state.resultsList,
+                recipesList = state.searchResultsList,
                 onCardClick = state::onCardClick,
+                onFavoriteClick = state::onFavoriteToggle,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
@@ -248,7 +134,7 @@ fun MainScreen(
         }
     }
     AnimatedVisibility(
-        visible = state.selectedItemId != null,
+        visible = state.selectedItemTitle != null,
         enter = slideIn(
             animationSpec = spring(stiffness = Spring.StiffnessMedium),
             initialOffset = { fullSize -> IntOffset(fullSize.width, 0) },
@@ -259,9 +145,9 @@ fun MainScreen(
         ),
     ) {
         RecipeDetailsScreen(
-            item = state.resultsList.firstOrNull { it.id == state.selectedItemId }
-                ?: RecipeItem.empty(),
+            item = state.selectedItem,
             onBackPressed = state::onClearSelectedItem,
+            onFavoritePressed = state::onFavoriteToggle,
             modifier = modifier,
         )
     }
@@ -281,7 +167,8 @@ fun MainScreen(
 fun RecipesList(
     title: String,
     recipesList: List<RecipeItem>,
-    onCardClick: (id: String) -> Unit,
+    onCardClick: (title: String) -> Unit,
+    onFavoriteClick: (title: String) -> Unit,
     modifier: Modifier = Modifier,
     endItem: (@Composable () -> Unit)? = null,
 ) {
@@ -294,7 +181,9 @@ fun RecipesList(
         item(key = "List Title") {
             Text(
                 text = title,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateItem(),
                 style = LocalTextStyle.current.copy(
                     fontSize = 32.sp,
                     lineHeight = 38.sp,
@@ -303,14 +192,15 @@ fun RecipesList(
             )
         }
         if (recipesList.isNotEmpty()) {
-            items(items = recipesList, key = { it.id }) {
+            items(items = recipesList, key = { it.title }) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(88.dp)
                         .clickable {
-                            onCardClick(it.id)
-                        },
+                            onCardClick(it.title)
+                        }
+                        .animateItem(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
                 ) {
                     Row(
@@ -360,10 +250,16 @@ fun RecipesList(
                             )
                         }
                         Icon(
-                            Icons.Default.Favorite,
+                            if (it.isFavorite) {
+                                Icons.Default.Favorite
+                            } else {
+                                Icons.Default.FavoriteBorder
+                            },
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .clickable { onFavoriteClick(it.title) }
                         )
                     }
                 }
@@ -377,7 +273,9 @@ fun RecipesList(
             item(key = "Empty State Text") {
                 Text(
                     text = "No recipes in this list!",
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(),
                     style = LocalTextStyle.current.copy(
                         fontSize = 26.sp,
                         lineHeight = 30.sp,

@@ -1,4 +1,4 @@
-package com.example.airecipes
+package com.example.airecipes.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.example.airecipes.ui.screen.MainScreen
+import com.example.airecipes.ui.screen.rememberMainScreenState
 import com.example.airecipes.ui.theme.AIRecipesTheme
 
 class MainActivity : ComponentActivity() {

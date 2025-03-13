@@ -1,14 +1,14 @@
-package com.example.airecipes
+package com.example.airecipes.ui.model
 
 data class RecipeItem(
-    val id: String,
     val title: String,
     val cookingTime: String,
     val ingredients: String,
     val instructions: String,
     val imageUrl: String,
+    val isFavorite: Boolean,
 ) {
     companion object {
-        fun empty() = RecipeItem("", "", "", "", "", "")
+        fun empty() = RecipeItem("", "", "", "", "", false)
     }
 }

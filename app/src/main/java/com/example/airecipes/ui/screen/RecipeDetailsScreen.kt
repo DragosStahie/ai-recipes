@@ -1,5 +1,6 @@
-package com.example.airecipes
+package com.example.airecipes.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -30,13 +32,19 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.example.airecipes.R
+import com.example.airecipes.ui.model.RecipeItem
 
 @Composable
 fun RecipeDetailsScreen(
     item: RecipeItem,
     onBackPressed: () -> Unit,
+    onFavoritePressed: (itemTitle: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BackHandler {
+        onBackPressed()
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -96,9 +104,19 @@ fun RecipeDetailsScreen(
                 )
             }
             Icon(
-                Icons.Default.Favorite,
+                if (item.isFavorite) {
+                    Icons.Default.Favorite
+                } else {
+                    Icons.Default.FavoriteBorder
+                },
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable {
+                    onFavoritePressed(item.title)
+                    if (item.isFavorite) {
+                        onBackPressed()
+                    }
+                }
             )
         }
         Column(
@@ -157,7 +175,6 @@ fun RecipeDetailsScreen(
 private fun RecipeDetailsScreenPreview() {
     RecipeDetailsScreen(
         item = RecipeItem(
-            id = "",
             title = "Mashed Potatoes",
             cookingTime = "20 min",
             ingredients = "5 pounds potatoes\\n\" +\n" +
@@ -175,8 +192,10 @@ private fun RecipeDetailsScreenPreview() {
                     "\"Stir everything together. Then pour half of the melted butter mixture over the potatoes, and fold it in with a wooden spoon or spatula until potatoes have soaked up the liquid. Repeat with the remaining butter. And then again with the cream cheese. Fold each addition in until just combined to avoid overmixing, or else you will end up with gummy potatoes.\\n\" +\n" +
                     "\"Taste and season. One final time, adding in extra salt (plus black pepper, if you would like) to taste.\\n\" +\n" +
                     "\"Serve warm. Then serve warm, garnished with any extra toppings that you might like, and enjoy!! ♡\"",
-            imageUrl = ""
+            imageUrl = "",
+            isFavorite = false,
         ),
-        onBackPressed = {}
+        onBackPressed = {},
+        onFavoritePressed = {}
     )
 }
